@@ -15,8 +15,7 @@
 #include <ea_init.h>
 #include <lpc2xxx.h>
 #include <consol.h>
-#include "i2c.h" // May not be needed because eeprom already includes it
-#include "eeprom.h"
+
 #include "usb/lpc_usb.h"
 #include "usb/lpc_hid.h"
 
@@ -60,7 +59,6 @@ tU8 xbeePresent;
 volatile tU32 msClock = 0;
 extern char startupSound[];
 
-tU8 alarm[6] = { 128, 255, 255, 128, 0, 0 };
 
 /*****************************************************************************
  *
@@ -89,34 +87,6 @@ main(void)
 /*****************************************************************************
  *
  * Description:
- *    Delay.
- *
- * Params:
- *    [in] arg - Number of miliseconds to wait. 
- *
- * Side effects:
- *    Timer #1 reprogrammed.
- *
- ****************************************************************************/
-void udelay(unsigned int microseconds)
-{
-  T1TCR = 0x02; // Stop and reset timer
-  T1PR  = 0x00; // Set prescaler to zero  // LETS THROUGH EVERY (VALUE+1) IMPULSE
-  T1MR0 = (microseconds * (CORE_FREQ / 1000)) / 1000;
-  T1IR  = 0xff; // Reset all interrrupt flags
-  T1MCR = 0x04; // Stop timer on match
-  T1TCR = 0x01; // Start timer
-  
-  // Wait until delay time has elapsed
-  while (T1TCR & 0x01) 
-  {
-
-  }
-}
-
-/*****************************************************************************
- *
- * Description:
  *    A process entry function 
  *
  * Params:
@@ -126,84 +96,164 @@ void udelay(unsigned int microseconds)
 static void
 proc1(void* arg)
 {
-  // State
-  tU16 wholeNumber = 0; // Temperature, number before comma
-  tU16 decimalNumber = 0; // Temperature, number after comma
-  tU16 targetTemperature = 23; // When to activate alarm
-  tBool isTargetReached = FALSE; // Should alarm be on
-  tU8  i = 0; // Sound loop index
+	tU8  centerReleased = TRUE;
+	tU8  i;
+	tU32 pattern;
+  tU8  error;
 
-  for (;;)
   {
-    // Read temperature
-    printf("\nReading temperature.\n");
-    tU8 data[3];
-    if (1 == lm75Read(0x90, &data[0], 3))
-    {
-      tU16 temperature;
-  
-      temperature = (((tU16)data[0]<<8) + (tU16)data[1]) >> 7;
-      wholeNumber = temperature / 2;
-      decimalNumber = (temperature&1) * 5;
-  
-      printf("\rCurrent temperature is %d.%d", wholeNumber, decimalNumber);
-    }
-    else
-    {
-      printf("\nFAILED TO READ TEMPERATURE!\n");
-    }
-  
-    // Compare measured temperature to target
-    if (wholeNumber > targetTemperature || ((wholeNumber == targetTemperature) && (decimalNumber != 0)))
-    {
-      isTargetReached = TRUE;
-  
-      printf("\nTarget temperature exceeded!\n");
-    }
-    else
-    {
-      isTargetReached = FALSE;
-  
-      printf("\nBelow target temperature.\n");
-    }
-  
-    // Sound the alarm
-    if (isTargetReached) {
-      printf("\nPlaying alarm.\n");
+    tU32 cnt = 0;
+    tU32 i;
+    
+	  IODIR |= 0x00000380;
+	  IOCLR  = 0x00000380;
 
+    //
+    //Initialize DAC: AOUT = P0.25
+    //
+    PINSEL1 &= ~0x000C0000;
+    PINSEL1 |=  0x00080000;
+
+    cnt = 0;
+    while(cnt++ < 0xF890)
+    {
       tS32 val;
-      for (i = 0; i < sizeof(alarm); i++)
-      {
-        // Original method
-        val = alarm[i] - 128;
-        val = val * 2;
-    
-        if (val > 127) val = 127;
-        else if (val < -127) val = -127;
-    
-        DACR = ((val+128) << 8) |  // Actual value to output
-              (1 << 16);          // BIAS = 1, 2.5uS settling time
-    
-        // Or...
-        // DACR = (val << 6) | 0x00010000;
-    
-        printf("\nPlayed a note.\n");
+      
+      val = startupSound[cnt] - 128;
+      val = val * 2;
+      if (val > 127) val = 127;
+      else if (val < -127) val = -127;
 
-        // Delay 125 us = 850 for 8kHz, 600 for 11 kHz
-        udelay(125);
+      DACR = ((val+128) << 8) |  //actual value to output
+             (1 << 16);         //BIAS = 1, 2.5uS settling time
+
+      //delay 125 us = 850 for 8kHz, 600 for 11 kHz
+      for(i=0; i<850; i++)
+        asm volatile (" nop");
+    }
+
+  }
+
+	for(;;)
+	{
+    printf("\n\n\n\n\n*******************************************************\n");
+    printf("*                                                     *\n");
+    printf("* This is the test program for Embedded Artists'      *\n");
+    printf("* LPC2148 Education Board v3.0...                     *\n");
+    printf("*                                                     *\n");
+    printf("* Version: 3.0                                        *\n");
+    printf("* Date:    22 December 2007                           *\n");
+    printf("* (C) Embedded Artists 2005-2007                      *\n");
+    printf("*                                                     *\n");
+    printf("*******************************************************\n");
+
+    //
+    //Start USB
+    //
+    printf("\n\nStarting USB Mouse test...\n");
+    printf("Use the joystick switch to move the cursor on the PC screen\n");
+    printf("(functions when the ADC test is visible)\n");
+    if (USB_Init(0,HID_CallBack,USB_NotFast))
+    {
+      printf("\nERROR initializing USB!\n");
+      for(;;)
+        osSleep(1);
+    }
     
-        // Original delay
-        // for(i=0; i<850; i++)
-        //   asm volatile (" nop");
+    //Initialize HID
+    HID_Init();
+
+
+    //
+    //Test XBee module (if present)
+    //
+    xbeePresent = testXBee();
+
+
+    //
+    //Test LEDs
+    //
+    PINSEL0 &= 0x0000ffff;
+    if (1 == xbeePresent)
+      //do not use P0.9 and P0.11
+      IODIR0  |= 0x0000f500;
+    else
+      IODIR0  |= 0x0000ff00;
+    IOSET0   = 0x0000ff00;
+
+    for(i=0; i<3; i++)
+    {
+      pattern = 0x00000100;
+      while(pattern <= 0x00008000)
+      {
+      	IOCLR = pattern;
+      	osSleep(15);
+      	IOSET0 = pattern;
+      	
+      	pattern <<= 1;
       }
     }
+    
 
-    printf("\nPause before next measurement.\n");
+    //
+    //Test EEPROM via I2C
+    //
+    testI2C();
 
-    // Pause equal to alarm duration
-    udelay(125 * sizeof(alarm));
+
+    //
+    //Test MMC/SD via SPI
+    //
+    //testMMC();
+    
+
+    //
+    //Start the rest of the processes
+    //
+    osCreateProcess(proc2, proc2Stack, PROC2_STACK_SIZE, &pid2, 3, NULL, &error);
+    osStartProcess(pid2, &error);
+    osCreateProcess(proc3, proc3Stack, PROC3_STACK_SIZE, &pid3, 3, NULL, &error);
+    osStartProcess(pid3, &error);
+    osCreateProcess(proc4, proc4Stack, PROC4_STACK_SIZE, &pid4, 3, NULL, &error);
+    osStartProcess(pid4, &error);
+    osCreateProcess(proc5, proc5Stack, PROC5_STACK_SIZE, &pid5, 3, NULL, &error);
+    osStartProcess(pid5, &error);
+
+
+    //wait for a short while
+    osSleep(100);
+    
+    IOPIN &= ~0x001f0000;
+    for(;;)
+    {
+		  if ((IOPIN & 0x00100000) == 0)
+        HID_SendReport(0,0,10);
+		  else if ((IOPIN & 0x00080000) == 0)
+        HID_SendReport(0,-10,0);
+		  else if ((IOPIN & 0x00040000) == 0)
+        HID_SendReport(0,10,0);
+		  else if ((IOPIN & 0x00020000) == 0)
+        HID_SendReport(0,0,-10);
+
+      if ((IOPIN & 0x00010000) == 0)
+      {
+      	if (centerReleased == TRUE)
+      	{
+      		HID_SendReport(1,0,0);
+      		centerReleased = FALSE;
+      	}
+      }
+      else
+      {
+      	if (centerReleased == FALSE)
+      	  HID_SendReport(0,0,0);
+      	centerReleased = TRUE;
+      }
+
+      osSleep(2);
+    }
   }
- }
+}
 
 /*****************************************************************************
  *
@@ -283,16 +333,7 @@ initProc(void* arg)
 {
   tU8 error;
 
-  eaInit(); // Initialize consol
-  i2cInit(); // Initialize I2C
-
-  // IODIR |= 0x00000380; // If the speaker doesn't work
-  // IOCLR  = 0x00000380; // try these
-
-  // Initialize DAC: AOUT = P0.25
-  PINSEL1 &= ~0x000C0000;
-  PINSEL1 |=  0x00080000;
-
+  eaInit();
   osCreateProcess(proc1, proc1Stack, PROC1_STACK_SIZE, &pid1, 3, NULL, &error);
   osStartProcess(pid1, &error);
 
