@@ -57,6 +57,7 @@ void testI2C(void);
 void testAdc(void);
 tU8  testXBee(void);
 void messageOnLCD(char *str, tU8 important);
+void lightRGB(tU8 r, tU8 g, tU8 b);
 
 tU8 xbeePresent;
 volatile tU32 msClock = 0;
@@ -184,7 +185,7 @@ proc1(void* arg)
     // Target
     message[14] += targetTemperature / 10;
     message[15] += targetTemperature % 10;
-    
+
     messageOnLCD(message, FALSE);
   
     // Compare measured temperature to target
@@ -199,6 +200,15 @@ proc1(void* arg)
       isTargetReached = FALSE;
   
       printf("\nBelow target temperature.\n");
+    }
+
+    // Light diodes
+    if (!isTargetReached) {
+      if (targetTemperature - wholeNumber > 2) {
+        lightRGB(0, 0, 255);
+      } else {
+        lightRGB(255, 255, 0);
+      }
     }
   
     // Sound the alarm
@@ -222,6 +232,13 @@ proc1(void* arg)
         // DACR = (val << 6) | 0x00010000;
     
         printf("\nPlayed a note.\n");
+
+        // Flash diodes
+        if (i % 2 == 0) {
+          lightRGB(0, 0, 0);
+        } else {
+          lightRGB(255, 0, 0);
+        }
 
         // Delay 125 us = 850 for 8kHz, 600 for 11 kHz
         udelay(125);
