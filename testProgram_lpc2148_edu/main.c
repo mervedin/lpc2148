@@ -17,6 +17,7 @@
 #include <consol.h>
 #include "i2c.h" // May not be needed because eeprom already includes it
 #include "eeprom.h"
+#include "key.h"
 #include "usb/lpc_usb.h"
 #include "usb/lpc_hid.h"
 
@@ -127,12 +128,15 @@ void udelay(unsigned int microseconds)
 static void
 proc1(void* arg)
 {
+  initKeyProc(); // Initialize joystick
+
   // State
   tU16 wholeNumber = 0; // Temperature, number before comma
   tU16 decimalNumber = 0; // Temperature, number after comma
   tU16 targetTemperature = 23; // When to activate alarm
   tBool isTargetReached = FALSE; // Should alarm be on
   tU8  i = 0; // Sound loop index
+  tU8 keypress; // Constants from key.h
 
   for (;;)
   {
@@ -154,13 +158,26 @@ proc1(void* arg)
       printf("\nFAILED TO READ TEMPERATURE!\n");
     }
 
+    // Read joystick
+    keypress = checkKey();
+    if (keypress != KEY_NOTHING) 
+    {
+      if (keypress == KEY_UP && targetTemperature < 60)
+      {
+        targetTemperature += 1;
+      } 
+      else if (keypress == KEY_DOWN && targetTemperature > 1)
+      {
+        targetTemperature -= 1;
+      }
+    }
+
     // Print temperature
     printf("\nDisplaying temperature.\n");
     char message[] = "00.0";
     message[0] += wholeNumber / 10;
     message[1] += wholeNumber % 10;
     message[3] += decimalNumber;
-
     messageOnLCD(message, FALSE);
   
     // Compare measured temperature to target
