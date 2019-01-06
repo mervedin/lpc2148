@@ -174,10 +174,17 @@ proc1(void* arg)
 
     // Print temperature
     printf("\nDisplaying temperature.\n");
-    char message[] = "00.0";
+    char message[] = "00.0\nTarget: 00.0";
+
+    // Current
     message[0] += wholeNumber / 10;
     message[1] += wholeNumber % 10;
     message[3] += decimalNumber;
+
+    // Target
+    message[14] += targetTemperature / 10;
+    message[15] += targetTemperature % 10;
+    
     messageOnLCD(message, FALSE);
   
     // Compare measured temperature to target
