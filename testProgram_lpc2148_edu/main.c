@@ -55,6 +55,7 @@ void testI2C(void);
 //void testMMC(void);
 void testAdc(void);
 tU8  testXBee(void);
+void messageOnLCD(char *str, tU8 important);
 
 tU8 xbeePresent;
 volatile tU32 msClock = 0;
@@ -152,6 +153,15 @@ proc1(void* arg)
     {
       printf("\nFAILED TO READ TEMPERATURE!\n");
     }
+
+    // Print temperature
+    printf("\nDisplaying temperature.\n");
+    char message[] = "00.0";
+    message[0] += wholeNumber / 10;
+    message[1] += wholeNumber % 10;
+    message[3] += decimalNumber;
+
+    messageOnLCD(message, FALSE);
   
     // Compare measured temperature to target
     if (wholeNumber > targetTemperature || ((wholeNumber == targetTemperature) && (decimalNumber != 0)))

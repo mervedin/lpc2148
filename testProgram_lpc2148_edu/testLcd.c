@@ -102,6 +102,76 @@ lcdBacklight(tU8 onOff)
 /*****************************************************************************
  *
  * Description:
+ *    Write a message.
+ *
+ ****************************************************************************/
+void
+messageOnLCD(char *str, tU8 important)
+{
+  char *ptr;
+  static tU8 initialized;
+  
+  if(initialized == 0) {
+    initLCD();
+    initialized = 1;
+  }
+  
+	lcdBacklight(TRUE);
+  osSleep(50);
+
+  //function set
+  writeLCD(0, 0x30);
+  osSleep(1);
+  writeLCD(0, 0x30);
+  delay37us();
+  writeLCD(0, 0x30);
+  delay37us();
+
+  //function set
+  writeLCD(0, 0x38);
+  delay37us();
+
+  //display off
+  writeLCD(0, 0x08);
+  delay37us();
+
+  //display clear
+  writeLCD(0, 0x01);
+  osSleep(1); //actually only 1.52 mS needed
+    
+  //display control set
+  writeLCD(0, 0x06);
+  osSleep(1);
+
+  //display control set
+  writeLCD(0, 0x0c);
+  delay37us();
+
+  //cursor home
+  writeLCD(0, 0x02);
+	osSleep(1);
+  
+  for(ptr = str; *ptr; ptr++)
+  {
+    if(*ptr != '\n')
+    {
+      writeLCD(1, *ptr);
+    }
+    else
+    {
+      writeLCD(0, 0x80 | 0x40);
+    }
+    delay37us();
+  }
+  
+  osSleep(50);
+	lcdBacklight(important);
+}
+
+
+/*****************************************************************************
+ *
+ * Description:
  *    A process entry function 
  *
  ****************************************************************************/
