@@ -80,7 +80,8 @@ main(void)
   //immediately turn off buzzer (if connected)
   IODIR0 |= 0x00000080;
   IOSET0  = 0x00000080;
-  
+  //IODIR0 = 1<<25;
+  //IOSET0 = 1<<25;
   osInit();
   osCreateProcess(initProc, initStack, INIT_STACK_SIZE, &pid, 1, NULL, &error);
   osStartProcess(pid, &error);
